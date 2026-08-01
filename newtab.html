@@ -7,26 +7,39 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="page">
-    <!-- Workspace tab bar -->
-    <nav class="wsbar" id="wsbar" aria-label="Workspaces">
-      <div class="wsbar-tabs" id="wsTabs" role="tablist"></div>
-      <button class="wsbar-add" id="wsAdd" title="New workspace" aria-label="New workspace">+</button>
-    </nav>
+  <!-- Per-workspace wallpaper: gives the Liquid Glass surfaces something to refract -->
+  <div class="wallpaper" id="wallpaper" aria-hidden="true">
+    <div class="wp-blob wp-a"></div>
+    <div class="wp-blob wp-b"></div>
+    <div class="wp-blob wp-c"></div>
+  </div>
 
-    <!-- Filter chip (appears when typing) -->
-    <div class="filter-chip" id="filterChip" hidden>
+  <main class="page">
+    <header class="page-head">
+      <h1 class="large-title" id="wsTitle" tabindex="0" title="Double-click to rename"></h1>
+      <p class="page-sub" id="wsSub"></p>
+    </header>
+
+    <!-- Filter capsule (appears when typing) -->
+    <div class="filter-chip glass" id="filterChip" hidden>
+      <svg class="filter-glyph" viewBox="0 0 17 17" aria-hidden="true">
+        <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.7" />
+        <path d="M10.8 10.8 L15 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+      </svg>
       <span id="filterText"></span>
-      <span class="filter-hint">Esc to clear</span>
+      <button class="filter-clear" id="filterClear" aria-label="Clear filter">✕</button>
     </div>
 
-    <!-- Active workspace canvas -->
+    <!-- Active workspace page -->
     <section class="canvas" id="canvas">
       <div class="grid" id="grid"></div>
+
       <div class="docs-section" id="docsSection" hidden>
-        <p class="section-label">Documents</p>
-        <div class="docs" id="docs"></div>
+        <input class="section-label" id="docsLabel" spellcheck="false"
+               aria-label="Documents section title" title="Click to rename this section" />
+        <div class="doc-list glass" id="docs"></div>
       </div>
+
       <div class="empty" id="empty" hidden>
         <div class="empty-art" id="emptyArt" aria-hidden="true">⌘V</div>
         <p class="empty-title">This workspace is empty</p>
@@ -34,58 +47,91 @@
       </div>
     </section>
 
-    <p class="foot-hint" id="footHint">Paste a link to add · drag tiles together to make a folder · press 1–9 to switch workspace</p>
+    <p class="foot-hint" id="footHint">Paste a link to add · long-press for options · swipe rows to act · press 1–9 to switch</p>
   </main>
 
-  <!-- Folder overlay -->
+  <!-- Floating dock: page dots + workspace switcher, pinned above the content -->
+  <div class="dock">
+    <div class="dots" id="wsDots" role="tablist" aria-label="Workspace pages"></div>
+    <nav class="switcher glass" id="wsbar" aria-label="Workspaces">
+      <div class="switcher-tabs" id="wsTabs" role="tablist"></div>
+      <button class="switcher-add" id="wsAdd" title="New workspace" aria-label="New workspace">
+        <svg viewBox="0 0 17 17" aria-hidden="true">
+          <path d="M8.5 3.5 V13.5 M3.5 8.5 H13.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+        </svg>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Edit-mode exit -->
+  <button class="done-pill glass" id="editDone" hidden>Done</button>
+
+  <!-- Blurred backdrop behind a lifted tile during long-press -->
+  <div class="lift-backdrop" id="liftBackdrop" hidden></div>
+
+  <!-- Folder card -->
   <div class="overlay" id="folderOverlay" hidden>
-    <div class="folder-panel" role="dialog" aria-modal="true" aria-labelledby="folderName">
+    <div class="folder-panel glass" role="dialog" aria-modal="true" aria-labelledby="folderName">
       <header class="folder-head">
         <div class="folder-head-left">
-          <span class="folder-glyph" aria-hidden="true">▣</span>
-          <div>
+          <span class="folder-glyph" aria-hidden="true">
+            <svg viewBox="0 0 20 20">
+              <rect x="2.5" y="4.5" width="15" height="11.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" />
+              <path d="M2.5 7.5 H8 l1.6-2.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <div class="folder-head-text">
             <input class="folder-name" id="folderName" spellcheck="false" />
             <p class="folder-count" id="folderCount"></p>
           </div>
         </div>
-        <div class="folder-head-actions">
-          <button class="btn" id="folderOpenAll">Open all as group</button>
-          <button class="btn icon" id="folderClose" aria-label="Close folder">✕</button>
-        </div>
+        <button class="btn icon" id="folderClose" aria-label="Close folder">✕</button>
       </header>
       <div class="folder-list" id="folderList"></div>
-      <div class="folder-paste">Paste a link to add it to this folder</div>
+      <div class="folder-foot">
+        <button class="btn primary" id="folderOpenAll">Open all as group</button>
+      </div>
     </div>
   </div>
 
-  <!-- Paste confirm popover -->
+  <!-- Add-link card -->
   <div class="overlay light" id="pasteOverlay" hidden>
-    <div class="paste-card" role="dialog" aria-modal="true" aria-label="Add link">
+    <div class="paste-card glass" role="dialog" aria-modal="true" aria-label="Add link">
       <div class="paste-row">
-        <img class="paste-favicon" id="pasteFavicon" alt="" />
+        <div class="paste-preview tile-box" id="pastePreview" aria-hidden="true"></div>
         <div class="paste-fields">
           <input class="paste-title" id="pasteTitle" spellcheck="false" placeholder="Title" />
           <p class="paste-url" id="pasteUrl"></p>
         </div>
       </div>
-      <div class="paste-foot">
-        <div class="seg" role="radiogroup" aria-label="Tile type">
-          <button class="seg-btn" id="segApp" role="radio">App tile</button>
-          <button class="seg-btn" id="segDoc" role="radio">Document card</button>
-        </div>
-        <div class="paste-actions">
-          <button class="btn" id="pasteCancel">Cancel</button>
-          <button class="btn primary" id="pasteAdd">Add</button>
-        </div>
+      <div class="seg" id="seg" role="radiogroup" aria-label="Tile type" data-sel="app">
+        <span class="seg-thumb" id="segThumb" aria-hidden="true"></span>
+        <button class="seg-btn" id="segApp" role="radio">App tile</button>
+        <button class="seg-btn" id="segDoc" role="radio">Document</button>
+      </div>
+
+      <div class="picker">
+        <p class="picker-label">Colour</p>
+        <div class="swatch-row" id="tintRow" role="radiogroup" aria-label="Tile colour"></div>
+      </div>
+
+      <div class="picker">
+        <p class="picker-label">Icon</p>
+        <div class="icon-row" id="iconRow" role="radiogroup" aria-label="Tile icon"></div>
+      </div>
+
+      <div class="paste-actions">
+        <button class="btn" id="pasteCancel">Cancel</button>
+        <button class="btn primary" id="pasteAdd">Add</button>
       </div>
     </div>
   </div>
 
-  <!-- Custom context menu -->
-  <div class="ctx" id="ctx" hidden></div>
+  <!-- Context menu -->
+  <div class="ctx glass" id="ctx" hidden></div>
 
   <!-- Toast -->
-  <div class="toast" id="toast" hidden></div>
+  <div class="toast glass" id="toast" hidden></div>
 
   <script src="app.js"></script>
 </body>
