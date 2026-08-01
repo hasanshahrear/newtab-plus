@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>New Tab</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <!-- Workspace tab bar -->
+    <nav class="wsbar" id="wsbar" aria-label="Workspaces">
+      <div class="wsbar-tabs" id="wsTabs" role="tablist"></div>
+      <button class="wsbar-add" id="wsAdd" title="New workspace" aria-label="New workspace">+</button>
+    </nav>
+
+    <!-- Filter chip (appears when typing) -->
+    <div class="filter-chip" id="filterChip" hidden>
+      <span id="filterText"></span>
+      <span class="filter-hint">Esc to clear</span>
+    </div>
+
+    <!-- Active workspace canvas -->
+    <section class="canvas" id="canvas">
+      <div class="grid" id="grid"></div>
+      <div class="docs-section" id="docsSection" hidden>
+        <p class="section-label">Documents</p>
+        <div class="docs" id="docs"></div>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <div class="empty-art" aria-hidden="true">⌘V</div>
+        <p class="empty-title">This workspace is empty</p>
+        <p class="empty-sub">Paste a link anywhere on this page, or right-click any page and choose “Pin page to New Tab+”.</p>
+      </div>
+    </section>
+
+    <p class="foot-hint" id="footHint">Paste a link to add · drag tiles together to make a folder · press 1–9 to switch workspace</p>
+  </main>
+
+  <!-- Folder overlay -->
+  <div class="overlay" id="folderOverlay" hidden>
+    <div class="folder-panel" role="dialog" aria-modal="true" aria-labelledby="folderName">
+      <header class="folder-head">
+        <div class="folder-head-left">
+          <span class="folder-glyph" aria-hidden="true">▣</span>
+          <div>
+            <input class="folder-name" id="folderName" spellcheck="false" />
+            <p class="folder-count" id="folderCount"></p>
+          </div>
+        </div>
+        <div class="folder-head-actions">
+          <button class="btn" id="folderOpenAll">Open all as group</button>
+          <button class="btn icon" id="folderClose" aria-label="Close folder">✕</button>
+        </div>
+      </header>
+      <div class="folder-list" id="folderList"></div>
+      <div class="folder-paste">Paste a link to add it to this folder</div>
+    </div>
+  </div>
+
+  <!-- Paste confirm popover -->
+  <div class="overlay light" id="pasteOverlay" hidden>
+    <div class="paste-card" role="dialog" aria-modal="true" aria-label="Add link">
+      <div class="paste-row">
+        <img class="paste-favicon" id="pasteFavicon" alt="" />
+        <div class="paste-fields">
+          <input class="paste-title" id="pasteTitle" spellcheck="false" placeholder="Title" />
+          <p class="paste-url" id="pasteUrl"></p>
+        </div>
+      </div>
+      <div class="paste-foot">
+        <div class="seg" role="radiogroup" aria-label="Tile type">
+          <button class="seg-btn" id="segApp" role="radio">App tile</button>
+          <button class="seg-btn" id="segDoc" role="radio">Document card</button>
+        </div>
+        <div class="paste-actions">
+          <button class="btn" id="pasteCancel">Cancel</button>
+          <button class="btn primary" id="pasteAdd">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom context menu -->
+  <div class="ctx" id="ctx" hidden></div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

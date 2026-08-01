@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "New Tab+ — Workspaces",
+  "version": "0.1.0",
+  "description": "Your new tab as workspaces: apps, documents and folders organized per project.",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "permissions": ["storage", "tabs", "tabGroups", "favicon", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
