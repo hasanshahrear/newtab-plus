@@ -4,10 +4,12 @@
 const MENU_ID = "newtabplus-pin";
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: MENU_ID,
-    title: "Pin page to New Tab+",
-    contexts: ["page", "link"],
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title: "Pin page to New Tab+",
+      contexts: ["page", "link"],
+    });
   });
 });
 

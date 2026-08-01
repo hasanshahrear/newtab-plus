@@ -69,12 +69,34 @@ function saveState() {
   saveTimer = setTimeout(async () => {
     if (IS_EXT) {
       suppressStorageEcho = true;
+      const fresh = await chrome.storage.local.get("state");
+      if (fresh.state) mergeExternalAdditions(fresh.state);
       await chrome.storage.local.set({ state });
       setTimeout(() => { suppressStorageEcho = false; }, 250);
     } else {
       localStorage.setItem("ntp-state", JSON.stringify(state));
     }
   }, 150);
+}
+
+/* Carry over items added elsewhere (e.g. background.js's "Pin page" handler)
+   while this page had a debounced save pending, so they aren't clobbered. */
+function mergeExternalAdditions(remote) {
+  const localIds = new Set();
+  state.workspaces.forEach((ws) => ws.items.forEach((it) => {
+    localIds.add(it.id);
+    if (it.kind === "folder") it.items.forEach((x) => localIds.add(x.id));
+  }));
+  remote.workspaces.forEach((rws) => {
+    const lws = state.workspaces.find((w) => w.id === rws.id);
+    if (!lws) { state.workspaces.push(rws); return; }
+    rws.items.forEach((rit) => {
+      if (!localIds.has(rit.id)) lws.items.push(rit);
+      if (rit.kind === "folder") {
+        rit.items.forEach((rin) => { if (!localIds.has(rin.id)) lws.items.push(rin); });
+      }
+    });
+  });
 }
 
 /* React when the background worker pins a page from another tab */
@@ -375,7 +397,6 @@ function folderTile(folder) {
   const tile = document.createElement("div");
   tile.className = "tile";
   tile.dataset.id = folder.id;
-  tile.dataset.folder = "1";
   tile.draggable = true;
   if (!matchesFilter(folder)) tile.classList.add("hidden-by-filter");
 
@@ -510,7 +531,10 @@ function wireDrag(el, item) {
     const rect = el.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     clearDropHints();
-    if (x > 0.3 && x < 0.7) el.classList.add("merge-target");
+    // inside an open folder, items can only be reordered — folders can't nest
+    if (el.classList.contains("folder-row")) {
+      el.classList.add(x <= 0.5 ? "reorder-before" : "reorder-after");
+    } else if (x > 0.3 && x < 0.7) el.classList.add("merge-target");
     else if (x <= 0.3) el.classList.add("reorder-before");
     else el.classList.add("reorder-after");
   });
@@ -538,6 +562,29 @@ function clearDropHints() {
 
 function handleDrop(draggedId, target, mode) {
   const ws = activeWs();
+
+  // Find the list the target currently lives in: the workspace's top level,
+  // or an open folder's items (folder-overlay rows reorder in place).
+  let targetList = ws.items;
+  if (!targetList.includes(target)) {
+    const parentFolder = ws.items.find((it) => it.kind === "folder" && it.items.includes(target));
+    if (parentFolder) targetList = parentFolder.items;
+  }
+
+  // Reordering within that same list: splice in place. Routing this through
+  // removeItemById (below) would trip its folder-dissolve-at-1-item cleanup
+  // when the dragged item and target are the only two links left in a folder.
+  const sameListIdx = targetList.findIndex((x) => x.id === draggedId);
+  if (sameListIdx !== -1 && mode !== "merge") {
+    const [dragged] = targetList.splice(sameListIdx, 1);
+    let tIdx = targetList.indexOf(target);
+    if (mode === "after") tIdx += 1;
+    targetList.splice(tIdx, 0, dragged);
+    saveState();
+    renderAll();
+    return;
+  }
+
   const dragged = removeItemById(draggedId);
   if (!dragged) return;
 
@@ -547,30 +594,30 @@ function handleDrop(draggedId, target, mode) {
       else target.items.push(dragged);
       toast(`Added to “${target.name}”`);
     } else if (dragged.kind === "folder") {
-      // dropping a folder onto a link: absorb the link into the folder
-      const tIdx = ws.items.indexOf(target);
-      ws.items.splice(tIdx, 1);
+      // dropping a folder onto a link: absorb the link into the folder, in place
+      const tIdx = targetList.indexOf(target);
+      targetList.splice(tIdx, 1);
       dragged.items.push(target);
-      ws.items.push(dragged);
+      targetList.splice(tIdx, 0, dragged);
       toast(`Added to “${dragged.name}”`);
     } else {
       // two links → new folder
-      const tIdx = ws.items.indexOf(target);
+      const tIdx = targetList.indexOf(target);
       const folder = {
         id: uid(), kind: "folder",
         name: suggestFolderName(target, dragged),
         items: [target, dragged],
       };
-      ws.items.splice(tIdx, 1, folder);
+      targetList.splice(tIdx, 1, folder);
       toast(`Folder “${folder.name}” created — right-click to rename`);
     }
   } else {
-    // reorder within top level
-    let tIdx = ws.items.indexOf(target);
-    if (tIdx === -1) { ws.items.push(dragged); }
+    // moving into a different list (e.g. out of/into a folder), reordered in place
+    let tIdx = targetList.indexOf(target);
+    if (tIdx === -1) { targetList.push(dragged); }
     else {
       if (mode === "after") tIdx += 1;
-      ws.items.splice(tIdx, 0, dragged);
+      targetList.splice(tIdx, 0, dragged);
     }
   }
   saveState();
@@ -622,6 +669,8 @@ function renderFolderOverlay() {
   folder.items.forEach((item) => {
     const row = document.createElement("div");
     row.className = "folder-row";
+    row.dataset.id = item.id;
+    row.draggable = true;
 
     const img = faviconImg(item.url, "", 32);
     row.appendChild(img || letterAvatar(item.title));
@@ -667,6 +716,7 @@ function renderFolderOverlay() {
     row.appendChild(actions);
 
     row.addEventListener("click", (e) => openLink(item, e.metaKey || e.ctrlKey));
+    wireDrag(row, item);
     list.appendChild(row);
   });
 
@@ -681,6 +731,7 @@ $("folderOverlay").addEventListener("click", (e) => {
 /* ---------------- paste-to-add flow ---------------- */
 
 document.addEventListener("paste", (e) => {
+  if (!state) return;                                  // still loading
   if (!$("pasteOverlay").hidden) return;               // card already open
   if (e.target.tagName === "INPUT") return;            // typing in a field
   const text = (e.clipboardData || window.clipboardData).getData("text").trim();
@@ -917,6 +968,7 @@ function showWsMenu(e, ws) {
 /* ---------------- new workspace ---------------- */
 
 $("wsAdd").addEventListener("click", () => {
+  if (!state) return;                                  // still loading
   const name = prompt("Workspace name:");
   if (!name || !name.trim()) return;
   const used = new Set(state.workspaces.map((w) => w.color));
@@ -931,6 +983,7 @@ $("wsAdd").addEventListener("click", () => {
 /* ---------------- keyboard ---------------- */
 
 document.addEventListener("keydown", (e) => {
+  if (!state) return;                                  // still loading
   if (e.target.tagName === "INPUT") return;
 
   if (e.key === "Escape") {
@@ -978,6 +1031,8 @@ function updateFilter() {
 /* ---------------- boot ---------------- */
 
 (async function init() {
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+  $("emptyArt").textContent = isMac ? "⌘V" : "Ctrl+V";
   await loadState();
   renderAll();
 })();
